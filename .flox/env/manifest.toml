@@ -1,0 +1,18 @@
+version = 1
+
+[install]
+
+[vars]
+
+[hook]
+
+[profile]
+
+[services]
+
+[include]
+
+[build]
+
+[options]
+systems = ["x86_64-linux"]
