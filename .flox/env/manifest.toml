@@ -1,4 +1,4 @@
-schema-version = "1.10.0"
+version = 1
 
 [install]
 huggingface-hub.pkg-path = "python313Packages.huggingface-hub"
