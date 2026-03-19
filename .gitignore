@@ -1,1 +1,4 @@
 result*
+.flox/cache/
+.flox/run/
+.flox/log/
