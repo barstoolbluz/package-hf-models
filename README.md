@@ -96,20 +96,62 @@ mkHfModel {
 
 ## Current packages
 
-| Package | Model | Layout | Quantization | Notes |
-|---|---|---|---|---|
-| `phi-4-mini-instruct-fp8-hf` | Phi-4-mini-instruct | single | FP8 (PyTorch native) | Triton-only |
-| `phi-4-mini-instruct-fp8-torchao` | Phi-4-mini-instruct | single | FP8 ([TorchAO](https://github.com/pytorch/ao)) | Triton-only |
-| `phi-4-mini-instruct-fp8-sglang` | Phi-4-mini-instruct | HF-only | FP8 (TorchAO) | Custom build (see below) |
-| `vllm-phi-3-5-mini-instruct-awq` | Phi-3.5-mini-instruct | dual | [AWQ](https://github.com/mit-han-lab/llm-awq) 4-bit | T4-compatible |
-| `vllm-qwen3-5-2b` | Qwen3.5-2B | dual | none (full precision) | T4-compatible |
-| `vllm-qwen3-5-4b-fp8` | Qwen3.5-4B | single | FP8 (TorchAO) | |
-| `vllm-smollm3-3b-fp8` | SmolLM3-3B | single | FP8 (TorchAO) | |
+| Package | Model | Layout | Quantization | GPU req | Notes |
+|---|---|---|---|---|---|
+| `phi-4-mini-instruct-fp8-hf` | Phi-4-mini-instruct | single | FP8 (PyTorch native) | SM89+ | Triton-only |
+| `phi-4-mini-instruct-fp8-torchao` | Phi-4-mini-instruct | single | FP8 ([TorchAO](https://github.com/pytorch/ao)) | SM89+ | Triton-only |
+| `phi-4-mini-instruct-fp8-sglang` | Phi-4-mini-instruct | HF-only | FP8 (TorchAO) | SM89+ | Custom build (see below) |
+| `vllm-phi-3-5-mini-instruct-awq` | Phi-3.5-mini-instruct | dual | [AWQ](https://github.com/mit-han-lab/llm-awq) 4-bit | SM75+ | |
+| `vllm-qwen3-5-2b` | Qwen3.5-2B | dual | none (full precision) | SM75+ | |
+| `vllm-qwen3-5-4b-fp8` | Qwen3.5-4B | single | FP8 (TorchAO) | SM89+ | |
+| `vllm-smollm3-3b-fp8` | SmolLM3-3B | single | FP8 (TorchAO) | SM89+ | |
 
-**Quantization types:**
-- **FP8** — 8-bit floating point. Halves memory vs FP16 with minimal quality loss. "PyTorch native" and "TorchAO" are two different toolchains for producing FP8 weights.
-- **AWQ** — Activation-aware Weight Quantization. 4-bit integer quantization that preserves accuracy by protecting salient weights. Runs on any CUDA GPU including older ones like the T4.
-- **T4-compatible** — fits within the 16 GB VRAM of an NVIDIA T4, a widely available cloud GPU (AWS `g4dn`, GCP `n1-standard + T4`).
+**Quantization types in this repo:**
+- **FP8 (W8A8)** — 8-bit float weights and activations. Two toolchains: PyTorch native and [TorchAO](https://github.com/pytorch/ao).
+- **AWQ (INT4)** — 4-bit integer weights, FP16 activations. Preserves accuracy via salient-weight protection.
+- **none (BF16/FP16)** — unquantized. `dtype = "auto"` resolves to BF16 on SM80+, FP16 on older GPUs.
+
+### GPU compatibility
+
+#### SM architecture reference
+
+| SM | Generation | Representative GPUs |
+|---|---|---|
+| SM75 | Turing (2018) | T4, RTX 2070/2080 |
+| SM80 | Ampere (2020) | A100 |
+| SM86 | Ampere (2020) | A10, RTX 3090 |
+| SM89 | Ada Lovelace (2022) | L4, L40, L40S, RTX 4090 |
+| SM90 | Hopper (2022) | H100, H200 |
+| SM100 | Blackwell (2024) | B200 |
+| SM120 | Blackwell (2025) | RTX 5090, RTX 5080 |
+
+#### Quantization × SM compatibility matrix
+
+This covers the three methods used in this repo plus common alternatives you may encounter:
+
+| Method | SM75 | SM80/86 | SM89 | SM90 | SM100/120 |
+|---|---|---|---|---|---|
+| FP8 W8A8 | W8A16 only (Marlin) | W8A16 only (Marlin) | native | native | native |
+| AWQ (INT4) | supported | Marlin-optimized | Marlin-optimized | Marlin-optimized | Marlin-optimized |
+| GPTQ (INT4) | supported | Marlin-optimized | Marlin-optimized | Marlin-optimized | Marlin-optimized |
+| INT8 (W8A8) | supported | supported | supported | supported | supported |
+| FP16 / BF16 | FP16 only | native (both) | native (both) | native (both) | native (both) |
+| FP4 (NVFP4) | — | — | — | — | native |
+
+**Legend:**
+- **native** — hardware tensor-core support, best performance
+- **Marlin-optimized** — uses [Marlin](https://github.com/IST-DASLab/marlin) kernels for high-throughput dequantization
+- **W8A16 only (Marlin)** — weights stored in FP8, dequantized to FP16 for compute via Marlin; memory savings but no FP8 compute speedup
+- **supported** — runs correctly, standard CUDA kernels (native AWQ GEMM on SM75, ExLlamaV2 for GPTQ on SM75)
+- **—** — not available on this architecture
+
+#### Choosing a quantization for your GPU
+
+- **SM89+** (L4, L40, RTX 4090, H100): FP8 is the best default — native tensor-core support, half the memory of FP16.
+- **SM80/86** (A100, A10, RTX 3090): AWQ or GPTQ for best memory efficiency. FP8 loads but runs as W8A16 via Marlin.
+- **SM75** (T4, RTX 2070/2080): AWQ or GPTQ recommended. FP8 loads as W8A16 (memory savings, no FP8 compute speedup). Small unquantized models fit in FP16.
+
+See the [vLLM quantization docs](https://docs.vllm.ai/en/latest/features/quantization/index.html) for the full story.
 
 ### Special case: `phi-4-mini-instruct-fp8-sglang`
 

@@ -1,6 +1,6 @@
 # Phi-3.5-mini-instruct AWQ 4-bit — dual layout for Triton + vanilla vLLM
 #
-# T4-compatible (INT4, all CUDA GPUs), 2.2 GB on disk.
+# SM75+ (INT4, all CUDA GPUs), 2.2 GB on disk.
 # Quantized from microsoft/Phi-3.5-mini-instruct via model-quantizer (AutoAWQ).
 { pkgs, mkHfModel ? pkgs.callPackage ./mkHfModel.nix {} }:
 

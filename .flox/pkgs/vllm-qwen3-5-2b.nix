@@ -1,4 +1,4 @@
-# Qwen3.5-2B (unquantized, fits on T4) — dual layout for Triton + vanilla vLLM
+# Qwen3.5-2B (SM75+, unquantized, ~4 GB) — dual layout for Triton + vanilla vLLM
 #
 # HF cache snapshots use symlinks to ../../blobs/, so srcPath must be the
 # entire model directory (including blobs/) and we resolve symlinks during copy.
